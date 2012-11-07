@@ -41,7 +41,10 @@ template <class T> class MythPointerThreadSafe;
 
 typedef std::map<CStdString, MythProgramInfo> ProgramInfoMap;
 
-class MythConnection
+typedef cmyth_commbreak MythEdlEntry;
+typedef std::vector<MythEdlEntry> Edl;
+
+class MythConnection 
 {
 public:
   MythConnection();
@@ -88,6 +91,10 @@ public:
   // Bookmarks
   long long GetBookmark(MythProgramInfo &recording);
   bool SetBookmark(MythProgramInfo &recording, long long bookmark);
+
+  // Edl
+  Edl GetCutList(MythProgramInfo &recording);
+  Edl GetCommbreakList(MythProgramInfo &recording);
 
 private:
   boost::shared_ptr<MythPointerThreadSafe<cmyth_conn_t> > m_conn_t;
