@@ -508,6 +508,7 @@ PVR_ERROR PVRClientMythTV::GetRecordings(ADDON_HANDLE handle)
       tag.recordingTime = it->second.StartTime();
       tag.iDuration = it->second.Duration();
       tag.iPlayCount = it->second.IsWatched() ? 1 : 0;
+      tag.iLastPlayedPosition = GetRecordingLastPlayedPosition(it->second);
 
       CStdString id = it->second.UID();
       CStdString title = it->second.Title();
@@ -809,6 +810,47 @@ PVR_ERROR PVRClientMythTV::SetRecordingLastPlayedPosition(const PVR_RECORDING &r
   return PVR_ERROR_FAILED;
 }
 
+int PVRClientMythTV::GetRecordingLastPlayedPosition(MythProgramInfo &programInfo)
+{
+  // MythTV provides it's bookmarks as frame offsets whereas XBMC expects a time offset.
+  // The bookmark in seconds is calculated by: bookmark = frameOffset / frameRate.
+  int bookmark = 0;
+
+  if (programInfo.HasBookmark())
+  {
+    long long frameOffset = m_con.GetBookmark(programInfo); // returns 0 if no bookmark was found
+    if (frameOffset > 0)
+    {
+      if (g_bExtraDebug)
+      {
+        XBMC->Log(LOG_DEBUG, "%s - FrameOffset: %lld)", __FUNCTION__, frameOffset);
+      }
+      // Pin framerate value
+      if (programInfo.Framterate() < 0)
+        programInfo.SetFramerate(m_db.GetRecordingFrameRate(programInfo));
+      float frameRate = (float)programInfo.Framterate() / 1000.0f;
+      if (frameRate > 0)
+      {
+        bookmark = (int)((float)frameOffset / frameRate);
+        if (g_bExtraDebug)
+        {
+          XBMC->Log(LOG_DEBUG, "%s - Bookmark: %d)", __FUNCTION__, bookmark);
+        }
+      }
+    }
+  }
+  else
+  {
+    if (g_bExtraDebug)
+    {
+      XBMC->Log(LOG_DEBUG, "%s - Recording %s has no bookmark", __FUNCTION__, programInfo.Title().c_str());
+    }
+  }
+
+  if (bookmark < 0) bookmark = 0;
+  return bookmark;
+}
+
 int PVRClientMythTV::GetRecordingLastPlayedPosition(const PVR_RECORDING &recording)
 {
   // MythTV provides it's bookmarks as frame offsets whereas XBMC expects a time offset.
@@ -822,43 +864,11 @@ int PVRClientMythTV::GetRecordingLastPlayedPosition(const PVR_RECORDING &recordi
 
   CLockObject lock(m_recordingsLock);
   ProgramInfoMap::iterator it = m_recordings.find(recording.strRecordingId);
-  if (it != m_recordings.end() && it->second.HasBookmark())
-  {
-    long long frameOffset = m_con.GetBookmark(it->second); // returns 0 if no bookmark was found
-    if (frameOffset > 0)
-    {
-      if (g_bExtraDebug)
-      {
-        XBMC->Log(LOG_DEBUG, "%s - FrameOffset: %lld)", __FUNCTION__, frameOffset);
-      }
-      // Pin framerate value
-      if (it->second.Framterate() <0)
-        it->second.SetFramerate(m_db.GetRecordingFrameRate(it->second));
-      float frameRate = (float)it->second.Framterate() / 1000.0f;
-      if (frameRate > 0)
-      {
-        bookmark = (int)((float)frameOffset / frameRate);
-        if (g_bExtraDebug)
-        {
-          XBMC->Log(LOG_DEBUG, "%s - Bookmark: %d)", __FUNCTION__, bookmark);
-        }
-      }
-    }
-  }
+  if (it != m_recordings.end())
+    bookmark = GetRecordingLastPlayedPosition(it->second);
   else
-  {
-    if (it == m_recordings.end())
-    {
-      XBMC->Log(LOG_ERROR, "%s - Recording %s does not exist", __FUNCTION__, recording.strRecordingId);
-    }
-    else if (!it->second.HasBookmark() && g_bExtraDebug)
-    {
-      XBMC->Log(LOG_DEBUG, "%s - Recording %s has no bookmark", __FUNCTION__, recording.strRecordingId);
-    }
-    return bookmark;
-  }
+    XBMC->Log(LOG_ERROR, "%s - Recording %s does not exist", __FUNCTION__, recording.strRecordingId);
 
-  if (bookmark < 0) bookmark = 0;
   return bookmark;
 }
 
