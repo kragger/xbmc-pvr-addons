@@ -252,6 +252,32 @@ bool PVRClientMythTV::GetDriveSpace(long long *iTotal, long long *iUsed)
   return m_con.GetDriveSpace(*iTotal, *iUsed);
 }
 
+bool PVRClientMythTV::IsBackendEventOK(bool notify)
+{
+  bool status = false;
+  if (m_pEventHandler)
+    status = m_pEventHandler->IsListening();
+  if (notify && !status)
+    XBMC->QueueNotification(QUEUE_ERROR, XBMC->GetLocalizedString(30302)); // MythTV backend unavailable
+  return status;
+}
+
+void PVRClientMythTV::OnSleep()
+{
+  if (m_pEventHandler)
+    m_pEventHandler->Suspend();
+  if (m_fileOps)
+    m_fileOps->Suspend();
+}
+
+void PVRClientMythTV::OnWake()
+{
+  if (m_pEventHandler)
+    m_pEventHandler->Resume();
+  if (m_fileOps)
+    m_fileOps->Resume();
+}
+
 PVR_ERROR PVRClientMythTV::GetEPGForChannel(ADDON_HANDLE handle, const PVR_CHANNEL &channel, time_t iStart, time_t iEnd)
 {
   if (g_bExtraDebug)
